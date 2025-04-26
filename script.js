@@ -1,68 +1,57 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
+const canvasWidth = canvas.width;
+const canvasHeight = canvas.height;
+
+const groundY = canvasHeight - 100;
+
+let keys = {};
+let facingRight = true;
+let moving = false;
+let punching = false;
+let jumping = false;
+
+let frameIndex = 0;
+let lastTime = 0;
+const frameRate = 100;
+
+let punchFrame = 0;
+let jumpFrame = 0;
+let velocityY = 0;
+let gravity = 1;
+let grounded = true;
+
+const player = {
+  x: canvasWidth / 2,
+  y: groundY,
+  width: 150,
+  height: 150,
+  speed: 5,
+};
+
 const idleFrames = [];
 const walkFrames = [];
 const punchFrames = [];
 const jumpFrames = [];
 
-let currentFrame = 0;
-let frameDelay = 100;
-let lastFrameTime = 0;
-
-let keys = {};
-let facingRight = false;
-let moving = false;
-let punching = false;
-let jumping = false;
-let punchFrame = 0;
-let jumpFrame = 0;
-let velocityY = 0;
-let grounded = false;
-
-// Load idle frames
-for (let i = 0; i < 60; i++) {
-  const img = new Image();
-  const index = String(i).padStart(3, '0');
-  img.src = `idle/tile${index}.png`;
-  idleFrames.push(img);
+function loadFrames(folder, count) {
+  const frames = [];
+  for (let i = 0; i < count; i++) {
+    const img = new Image();
+    img.src = `${folder}/tile${String(i).padStart(3, "0")}.png`;
+    frames.push(img);
+  }
+  return frames;
 }
 
-// Load walk frames
-for (let i = 0; i < 76; i++) {
-  const img = new Image();
-  const index = String(i).padStart(3, '0');
-  img.src = `walk/tile${index}.png`;
-  walkFrames.push(img);
-}
+// Load all animations
+idleFrames.push(...loadFrames("idle", 60));
+walkFrames.push(...loadFrames("walk", 76));
+punchFrames.push(...loadFrames("punch", 100));
+jumpFrames.push(...loadFrames("jump", 50));
 
-// Load punch frames
-for (let i = 0; i < 100; i++) {
-  const img = new Image();
-  const index = String(i).padStart(3, '0');
-  img.src = `punch/tile${index}.png`;
-  punchFrames.push(img);
-}
-
-// Load jump frames
-for (let i = 0; i < 50; i++) {
-  const img = new Image();
-  const index = String(i).padStart(3, '0');
-  img.src = `jump/tile${index}.png`;
-  jumpFrames.push(img);
-}
-
-const player = {
-  x: canvas.width / 2,
-  y: canvas.height - 150,
-  width: 128,
-  height: 128,
-  speed: 3,
-  jumpHeight: 15,
-  gravity: 0.8,
-  jumpSpeed: -15,
-};
-
+// Input handling
 window.addEventListener("keydown", (e) => {
   keys[e.key] = true;
 });
@@ -72,47 +61,45 @@ window.addEventListener("keyup", (e) => {
 });
 
 canvas.addEventListener("mousedown", () => {
-  if (!punching && !jumping) {
+  if (!punching && grounded) {
     punching = true;
     punchFrame = 0;
   }
 });
 
-function updatePlayerMovement() {
-  if (punching || jumping) return; // disable movement during punch or jump
-
+function updatePlayer() {
   moving = false;
-  if (keys["ArrowLeft"]) {
-    player.x -= player.speed;
-    moving = true;
-    facingRight = false;
-  }
-  if (keys["ArrowRight"]) {
-    player.x += player.speed;
-    moving = true;
-    facingRight = true;
-  }
 
-  if (keys[" "]) { // spacebar to jump
-    if (grounded) {
-      jumping = true;
-      grounded = false;
-      velocityY = player.jumpSpeed;
+  if (!punching && !jumping) {
+    if (keys["ArrowLeft"]) {
+      player.x -= player.speed;
+      moving = true;
+      facingRight = false;
+    }
+    if (keys["ArrowRight"]) {
+      player.x += player.speed;
+      moving = true;
+      facingRight = true;
     }
   }
-}
 
-function updateJump() {
-  if (!jumping) return;
+  if (keys[" "] && grounded && !jumping && !punching) {
+    jumping = true;
+    grounded = false;
+    velocityY = -20;
+    jumpFrame = 0;
+  }
 
-  player.y += velocityY;
-  velocityY += player.gravity;
+  if (jumping) {
+    velocityY += gravity;
+    player.y += velocityY;
 
-  if (player.y >= canvas.height - 150) {
-    player.y = canvas.height - 150;
-    jumping = false;
-    grounded = true;
-    velocityY = 0;
+    if (player.y >= groundY) {
+      player.y = groundY;
+      velocityY = 0;
+      jumping = false;
+      grounded = true;
+    }
   }
 }
 
@@ -128,53 +115,62 @@ function drawFlippedImage(img, x, y, width, height, flip) {
   ctx.restore();
 }
 
-function gameLoop(timestamp) {
-  if (timestamp - lastFrameTime > frameDelay) {
-    lastFrameTime = timestamp;
+function drawGround() {
+  ctx.fillStyle = "#333";
+  ctx.fillRect(0, groundY + player.height / 2, canvasWidth, 10);
+}
+
+function drawPlayer(currentTime) {
+  if (currentTime - lastTime > frameRate) {
+    frameIndex++;
+    lastTime = currentTime;
 
     if (punching) {
       punchFrame++;
       if (punchFrame >= punchFrames.length) {
         punching = false;
         punchFrame = 0;
-        currentFrame = 0;
+        frameIndex = 0;
       }
-    } else if (jumping) {
+    }
+
+    if (jumping) {
       jumpFrame++;
       if (jumpFrame >= jumpFrames.length) {
         jumpFrame = 0;
       }
-    } else {
-      currentFrame++;
     }
   }
 
-  updatePlayerMovement();
-  updateJump();
-
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  let img;
+  let currentFrame;
   if (punching) {
-    img = punchFrames[punchFrame % punchFrames.length];
+    currentFrame = punchFrames[punchFrame % punchFrames.length];
   } else if (jumping) {
-    img = jumpFrames[jumpFrame % jumpFrames.length];
+    currentFrame = jumpFrames[jumpFrame % jumpFrames.length];
   } else if (moving) {
-    img = walkFrames[currentFrame % walkFrames.length];
+    currentFrame = walkFrames[frameIndex % walkFrames.length];
   } else {
-    img = idleFrames[currentFrame % idleFrames.length];
+    currentFrame = idleFrames[frameIndex % idleFrames.length];
   }
 
-  if (img.complete) {
+  if (currentFrame.complete) {
     drawFlippedImage(
-      img,
+      currentFrame,
       player.x - player.width / 2,
       player.y - player.height / 2,
       player.width,
       player.height,
-      facingRight
+      !facingRight
     );
   }
+}
+
+function gameLoop(currentTime) {
+  ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+  updatePlayer();
+  drawGround();
+  drawPlayer(currentTime);
 
   requestAnimationFrame(gameLoop);
 }
