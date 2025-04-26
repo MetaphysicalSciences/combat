@@ -1,11 +1,13 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-const canvasWidth = canvas.width;
-const canvasHeight = canvas.height;
+// Make the canvas much bigger
+canvas.width = 1920;
+canvas.height = 1080;
 
-const groundY = canvasHeight - 100;
+const groundY = canvas.height - 100;
 
+// Handle input
 let keys = {};
 let facingRight = true;
 let moving = false;
@@ -13,22 +15,25 @@ let punching = false;
 let jumping = false;
 
 let frameIndex = 0;
-let lastTime = 0;
-const frameRate = 100; // Normal frame rate
-const punchRate = 30;  // Faster punch
+let lastFrameTime = 0;
+
+const frameRateIdle = 80;    // Idle slower
+const frameRateWalk = 50;    // Walk faster
+const frameRatePunch = 30;   // Punch super fast
+const frameRateJump = 100;   // Jump slower
 
 let punchFrame = 0;
 let jumpFrame = 0;
 let velocityY = 0;
-let gravity = 1;
+let gravity = 1.2;
 let grounded = true;
 
 const player = {
-  x: canvasWidth / 2,
+  x: canvas.width / 2,
   y: groundY,
-  width: 220,
-  height: 220,
-  speed: 5,
+  width: 150,   // Proper size (will scale sprite but not squash)
+  height: 180,
+  speed: 6,
 };
 
 const idleFrames = [];
@@ -46,17 +51,19 @@ function loadFrames(folder, count) {
   return frames;
 }
 
+// Load all frames
 idleFrames.push(...loadFrames("idle", 60));
 walkFrames.push(...loadFrames("walk", 76));
 punchFrames.push(...loadFrames("punch", 100));
 jumpFrames.push(...loadFrames("jump", 50));
 
+// Input handlers
 window.addEventListener("keydown", (e) => {
-  keys[e.key] = true;
+  keys[e.key.toLowerCase()] = true;
 });
 
 window.addEventListener("keyup", (e) => {
-  keys[e.key] = false;
+  keys[e.key.toLowerCase()] = false;
 });
 
 canvas.addEventListener("mousedown", () => {
@@ -70,30 +77,29 @@ function updatePlayer() {
   moving = false;
 
   if (!punching && !jumping) {
-    if (keys["ArrowLeft"]) {
+    if (keys["a"]) {
       player.x -= player.speed;
       moving = true;
       facingRight = false;
     }
-    if (keys["ArrowRight"]) {
+    if (keys["d"]) {
       player.x += player.speed;
       moving = true;
       facingRight = true;
     }
   }
 
-  if (keys[" "] && grounded && !jumping && !punching) {
+  if ((keys["w"] || keys[" "]) && grounded && !jumping && !punching) {
     jumping = true;
     grounded = false;
     velocityY = -20;
-    jumpFrame = 18; // Start jump at frame 18
+    jumpFrame = 18; // Start at jump 18
   }
 
   if (jumping) {
     velocityY += gravity;
     player.y += velocityY;
 
-    // Transition to landing at frame 31
     if (jumpFrame < 31) {
       jumpFrame++;
     } else if (player.y >= groundY) {
@@ -125,8 +131,8 @@ function drawFlippedImage(img, x, y, width, height, flip) {
 }
 
 function drawGround() {
-  ctx.fillStyle = "#333";
-  ctx.fillRect(0, groundY + player.height / 2, canvasWidth, 10);
+  ctx.fillStyle = "#444";
+  ctx.fillRect(0, groundY + player.height / 2, canvas.width, 10);
 }
 
 function drawPlayer(currentTime) {
@@ -136,9 +142,9 @@ function drawPlayer(currentTime) {
   let flip = !facingRight;
 
   if (punching) {
-    if (now - lastTime > punchRate) {
+    if (now - lastFrameTime > frameRatePunch) {
       punchFrame++;
-      lastTime = now;
+      lastFrameTime = now;
     }
     if (punchFrame >= punchFrames.length) {
       punchFrame = 0;
@@ -147,19 +153,23 @@ function drawPlayer(currentTime) {
     currentFrame = punchFrames[punchFrame % punchFrames.length];
 
   } else if (jumping) {
+    if (now - lastFrameTime > frameRateJump) {
+      jumpFrame++;
+      lastFrameTime = now;
+    }
     currentFrame = jumpFrames[jumpFrame % jumpFrames.length];
 
   } else if (moving) {
-    if (now - lastTime > frameRate) {
+    if (now - lastFrameTime > frameRateWalk) {
       frameIndex++;
-      lastTime = now;
+      lastFrameTime = now;
     }
     currentFrame = walkFrames[frameIndex % walkFrames.length];
 
   } else {
-    if (now - lastTime > frameRate) {
+    if (now - lastFrameTime > frameRateIdle) {
       frameIndex++;
-      lastTime = now;
+      lastFrameTime = now;
     }
     currentFrame = idleFrames[frameIndex % idleFrames.length];
   }
@@ -168,7 +178,7 @@ function drawPlayer(currentTime) {
     drawFlippedImage(
       currentFrame,
       player.x - player.width / 2,
-      player.y - player.height / 2,
+      player.y - player.height,
       player.width,
       player.height,
       flip
@@ -177,7 +187,7 @@ function drawPlayer(currentTime) {
 }
 
 function gameLoop(currentTime) {
-  ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   updatePlayer();
   drawGround();
