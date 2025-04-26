@@ -1,10 +1,11 @@
 body {
   margin: 0;
-  background-color: #202020;
+  background: #222;
   overflow: hidden;
 }
+
 canvas {
   display: block;
   margin: 0 auto;
-  background-color: #303030;
+  background: #444;
 }
