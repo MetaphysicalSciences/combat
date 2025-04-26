@@ -14,7 +14,8 @@ let jumping = false;
 
 let frameIndex = 0;
 let lastTime = 0;
-const frameRate = 100;
+const frameRate = 100; // Normal frame rate
+const punchRate = 30;  // Faster punch
 
 let punchFrame = 0;
 let jumpFrame = 0;
@@ -25,9 +26,9 @@ let grounded = true;
 const player = {
   x: canvasWidth / 2,
   y: groundY,
-  width: 150,
-  height: 150,
-  speed: 4,
+  width: 220,
+  height: 220,
+  speed: 5,
 };
 
 const idleFrames = [];
@@ -45,13 +46,11 @@ function loadFrames(folder, count) {
   return frames;
 }
 
-// Load all animations
 idleFrames.push(...loadFrames("idle", 60));
 walkFrames.push(...loadFrames("walk", 76));
 punchFrames.push(...loadFrames("punch", 100));
 jumpFrames.push(...loadFrames("jump", 50));
 
-// Input handling
 window.addEventListener("keydown", (e) => {
   keys[e.key] = true;
 });
@@ -61,7 +60,7 @@ window.addEventListener("keyup", (e) => {
 });
 
 canvas.addEventListener("mousedown", () => {
-  if (!punching && grounded) {
+  if (!punching && grounded && !jumping) {
     punching = true;
     punchFrame = 0;
   }
@@ -87,18 +86,28 @@ function updatePlayer() {
     jumping = true;
     grounded = false;
     velocityY = -20;
-    jumpFrame = 0;
+    jumpFrame = 18; // Start jump at frame 18
   }
 
   if (jumping) {
     velocityY += gravity;
     player.y += velocityY;
 
-    if (player.y >= groundY) {
+    // Transition to landing at frame 31
+    if (jumpFrame < 31) {
+      jumpFrame++;
+    } else if (player.y >= groundY) {
       player.y = groundY;
       velocityY = 0;
-      jumping = false;
       grounded = true;
+      jumping = false;
+      jumpFrame = 0;
+    } else {
+      jumpFrame++;
+    }
+
+    if (jumpFrame >= jumpFrames.length) {
+      jumpFrame = 49;
     }
   }
 }
@@ -121,46 +130,48 @@ function drawGround() {
 }
 
 function drawPlayer(currentTime) {
-  if (currentTime - lastTime > frameRate) {
-    frameIndex++;
-    lastTime = currentTime;
-
-    if (punching) {
-      punchFrame++;
-      if (punchFrame >= punchFrames.length) {
-        punching = false;
-        punchFrame = 0;
-        frameIndex = 0;
-      }
-    }
-
-    if (jumping) {
-      jumpFrame++;
-      if (jumpFrame >= jumpFrames.length) {
-        jumpFrame = 0;
-      }
-    }
-  }
+  const now = currentTime;
 
   let currentFrame;
+  let flip = !facingRight;
+
   if (punching) {
+    if (now - lastTime > punchRate) {
+      punchFrame++;
+      lastTime = now;
+    }
+    if (punchFrame >= punchFrames.length) {
+      punchFrame = 0;
+      punching = false;
+    }
     currentFrame = punchFrames[punchFrame % punchFrames.length];
+
   } else if (jumping) {
     currentFrame = jumpFrames[jumpFrame % jumpFrames.length];
+
   } else if (moving) {
+    if (now - lastTime > frameRate) {
+      frameIndex++;
+      lastTime = now;
+    }
     currentFrame = walkFrames[frameIndex % walkFrames.length];
+
   } else {
+    if (now - lastTime > frameRate) {
+      frameIndex++;
+      lastTime = now;
+    }
     currentFrame = idleFrames[frameIndex % idleFrames.length];
   }
 
-  if (currentFrame.complete) {
+  if (currentFrame && currentFrame.complete) {
     drawFlippedImage(
       currentFrame,
       player.x - player.width / 2,
       player.y - player.height / 2,
       player.width,
       player.height,
-      !facingRight
+      flip
     );
   }
 }
