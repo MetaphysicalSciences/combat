@@ -6,11 +6,11 @@ let currentFrame = 0;
 let frameDelay = 100; // milliseconds
 let lastFrameTime = 0;
 
-// Load 60 idle frames
+// Load 60 idle frames from the 'idle/' folder
 for (let i = 0; i < 60; i++) {
   const img = new Image();
   const index = String(i).padStart(3, '0');
-  img.src = `tile${index}.png`;
+  img.src = `idle/tile${index}.png`;
   idleFrames.push(img);
 }
 
@@ -28,7 +28,7 @@ function gameLoop(timestamp) {
   }
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  
+
   const img = idleFrames[currentFrame];
   if (img.complete) {
     ctx.drawImage(img, player.x - player.width / 2, player.y - player.height / 2, player.width, player.height);
