@@ -27,7 +27,7 @@ const player = {
   y: groundY,
   width: 150,
   height: 150,
-  speed: 5,
+  speed: 4,
 };
 
 const idleFrames = [];
